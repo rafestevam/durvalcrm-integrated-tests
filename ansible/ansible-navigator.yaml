@@ -1,0 +1,10 @@
+---
+ansible-navigator:
+  ansible:
+    inventory:
+      entries:
+        - ./inventory/hosts.yml
+  execution-environment:
+    enabled: False
+  playbook-artifact:
+    enable: False

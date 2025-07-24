@@ -1,0 +1,5 @@
+2025-07-24T23:17:19.827077+00:00 WARNING 'ansible_navigator.image_manager.puller._log_message' Image inspection failed, image assumed to be corrupted or missing
+2025-07-24T23:17:19.827939+00:00 WARNING 'ansible_navigator.image_manager.puller._log_message' stdout: []
+
+2025-07-24T23:17:19.828011+00:00 WARNING 'ansible_navigator.image_manager.puller._log_message' stderr: Error: unable to inspect "ghcr.io/ansible/community-ansible-dev-tools:latest": failed to find image ghcr.io/ansible/community-ansible-dev-tools:latest: ghcr.io/ansible/community-ansible-dev-tools:latest: image not known
+

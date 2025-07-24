@@ -1,0 +1,190 @@
+---
+- name: Setup DurvalCRM Environment
+  hosts: all
+  become: yes
+  vars:
+    compose_file_path: "{{ playbook_dir }}/../files/compose.yml"
+    realm_file_path: "{{ playbook_dir }}/../files/realm-durvalcrm.json"
+    working_directory: "/opt/durvalcrm"
+
+  tasks:
+    - name: Update operating system packages
+      package:
+        name: "*"
+        state: latest
+      when: ansible_os_family == "RedHat" or ansible_os_family == "Debian"
+
+    - name: Install Podman on RedHat/CentOS/Fedora
+      package:
+        name:
+          - podman
+          - podman-compose
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Podman on Debian/Ubuntu
+      block:
+        - name: Update apt cache
+          apt:
+            update_cache: yes
+
+        - name: Install required packages for adding repositories
+          package:
+            name:
+              - ca-certificates
+              - curl
+              - gnupg
+              - lsb-release
+              - python3-venv
+              - python3-pip
+            state: present
+
+        - name: Install Podman from official Ubuntu repositories (22.04+)
+          package:
+            name:
+              - podman
+              - buildah
+              - skopeo
+            state: present
+          when: ansible_distribution_version is version('22.04', '>=')
+
+        - name: Install Podman from Kubic repository (older Ubuntu)
+          block:
+            - name: Add Kubic repository key
+              apt_key:
+                url: "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_{{ ansible_distribution_version }}/Release.key"
+                state: present
+
+            - name: Add Kubic repository
+              apt_repository:
+                repo: "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_{{ ansible_distribution_version }}/ /"
+                state: present
+                update_cache: yes
+
+            - name: Install Podman
+              package:
+                name: podman
+                state: present
+          when: ansible_distribution_version is version('22.04', '<')
+
+        - name: Install podman-compose for Ubuntu 24.04+ (PEP 668 compliant)
+          block:
+            - name: Check if podman-compose already exists
+              stat:
+                path: /usr/local/bin/podman-compose
+              register: podman_compose_exists
+
+            - name: Install podman-compose using pipx method
+              block:
+                - name: Install pipx
+                  package:
+                    name: pipx
+                    state: present
+
+                - name: Ensure pipx path is set
+                  command: pipx ensurepath
+                  become: no
+                  become_user: "{{ ansible_user }}"
+                  changed_when: false
+
+                - name: Install podman-compose via pipx
+                  command: pipx install podman-compose
+                  become: no
+                  become_user: "{{ ansible_user }}"
+                  args:
+                    creates: "/home/{{ ansible_user }}/.local/bin/podman-compose"
+                  register: pipx_install
+
+                - name: Create symlink for podman-compose to be available system-wide
+                  file:
+                    src: "/home/{{ ansible_user }}/.local/bin/podman-compose"
+                    dest: "/usr/local/bin/podman-compose"
+                    state: link
+                  when: pipx_install is succeeded
+              when: not podman_compose_exists.stat.exists
+              rescue:
+                - name: Fallback - Download podman-compose directly
+                  get_url:
+                    url: https://raw.githubusercontent.com/containers/podman-compose/main/podman_compose.py
+                    dest: /usr/local/bin/podman-compose
+                    mode: '0755'
+                  when: not podman_compose_exists.stat.exists
+          when: ansible_distribution_version is version('24.04', '>=')
+
+        - name: Install podman-compose for older Ubuntu versions
+          pip:
+            name: podman-compose
+            state: present
+            executable: pip3
+          when: ansible_distribution_version is version('24.04', '<')
+      when: ansible_os_family == "Debian"
+
+    - name: Create working directory
+      file:
+        path: "{{ working_directory }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy compose.yml to working directory
+      copy:
+        src: "{{ compose_file_path }}"
+        dest: "{{ working_directory }}/compose.yml"
+        mode: '0644'
+
+    - name: Copy realm-durvalcrm.json to working directory
+      copy:
+        src: "{{ realm_file_path }}"
+        dest: "{{ working_directory }}/realm-durvalcrm.json"
+        mode: '0644'
+
+    - name: Create keycloak themes directory
+      file:
+        path: "{{ working_directory }}/keycloak/themes"
+        state: directory
+        mode: '0755'
+
+    - name: Create postgres init directory
+      file:
+        path: "{{ working_directory }}/postgres"
+        state: directory
+        mode: '0755'
+
+    - name: Create PostgreSQL init.sql file
+      copy:
+        content: |
+          -- Initial database setup
+          -- This file will be executed when PostgreSQL container starts for the first time
+          
+          -- Create schema if needed
+          CREATE SCHEMA IF NOT EXISTS public;
+          
+          -- Grant permissions
+          GRANT ALL ON SCHEMA public TO durvalcrm_user;
+        dest: "{{ working_directory }}/postgres/init.sql"
+        mode: '0644'
+
+    - name: Start services with podman-compose
+      command: podman-compose up -d
+      args:
+        chdir: "{{ working_directory }}"
+      register: compose_result
+
+    - name: Wait for Keycloak to be healthy
+      uri:
+        url: "http://localhost:8080/health/ready"
+        method: GET
+        status_code: 200
+      register: keycloak_health
+      until: keycloak_health.status == 200
+      retries: 30
+      delay: 10
+
+    - name: Display service status
+      command: podman-compose ps
+      args:
+        chdir: "{{ working_directory }}"
+      register: service_status
+
+    - name: Show running services
+      debug:
+        var: service_status.stdout_lines
