@@ -1,0 +1,163 @@
+---
+- name: "BDD Test - Cenário 1.1: Login bem-sucedido"
+  hosts: test_servers
+  become: yes
+  vars:
+    app_url: "http://localhost:8080"
+    frontend_url: "http://localhost:5173"
+    keycloak_url: "http://localhost:8180"
+    test_user_email: "tesoureiro@org.com"
+    test_user_password: "senha123"
+    keycloak_realm: "durvalcrm"
+    keycloak_client_id: "durvalcrm-frontend"
+    
+  pre_tasks:
+    - name: Ensure required packages are installed
+      apt:
+        name:
+          - curl
+          - jq
+          - python3-pip
+          - postgresql-client
+        state: present
+        update_cache: yes
+
+    - name: Install Python packages for testing
+      pip:
+        name:
+          - requests
+          - pytest
+          - pytest-bdd
+        state: present
+
+  tasks:
+    - name: "GIVEN - Verificar se o usuário existe no Keycloak"
+      uri:
+        url: "{{ keycloak_url }}/admin/realms/{{ keycloak_realm }}/users"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ keycloak_admin_token }}"
+        params:
+          email: "{{ test_user_email }}"
+      register: user_check
+      ignore_errors: yes
+
+    - name: "GIVEN - Criar usuário de teste no Keycloak se não existir"
+      uri:
+        url: "{{ keycloak_url }}/admin/realms/{{ keycloak_realm }}/users"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ keycloak_admin_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          username: "tesoureiro"
+          email: "{{ test_user_email }}"
+          firstName: "Tesoureiro"
+          lastName: "Teste"
+          enabled: true
+          credentials:
+            - type: "password"
+              value: "{{ test_user_password }}"
+              temporary: false
+      when: user_check.json | length == 0
+
+    - name: "WHEN - Simular acesso à tela de login"
+      uri:
+        url: "{{ frontend_url }}/login"
+        method: GET
+        status_code: [200, 301, 302]
+      register: login_page_response
+
+    - name: "WHEN - Executar autenticação via Keycloak"
+      uri:
+        url: "{{ keycloak_url }}/realms/{{ keycloak_realm }}/protocol/openid-connect/token"
+        method: POST
+        headers:
+          Content-Type: "application/x-www-form-urlencoded"
+        body_format: form-urlencoded
+        body:
+          grant_type: "password"
+          client_id: "{{ keycloak_client_id }}"
+          username: "{{ test_user_email }}"
+          password: "{{ test_user_password }}"
+      register: auth_response
+
+    - name: "THEN - Verificar se a autenticação foi bem-sucedida"
+      assert:
+        that:
+          - auth_response.status == 200
+          - auth_response.json.access_token is defined
+          - auth_response.json.token_type == "Bearer"
+        fail_msg: "Falha na autenticação: {{ auth_response.msg | default('Unknown error') }}"
+        success_msg: "Autenticação bem-sucedida!"
+
+    - name: "THEN - Armazenar token JWT"
+      set_fact:
+        jwt_token: "{{ auth_response.json.access_token }}"
+        refresh_token: "{{ auth_response.json.refresh_token }}"
+
+    - name: "THEN - Verificar validade do token JWT"
+      uri:
+        url: "{{ keycloak_url }}/realms/{{ keycloak_realm }}/protocol/openid-connect/userinfo"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ jwt_token }}"
+      register: token_validation
+
+    - name: "THEN - Confirmar dados do usuário autenticado"
+      assert:
+        that:
+          - token_validation.status == 200
+          - token_validation.json.email == test_user_email
+        fail_msg: "Token JWT inválido ou usuário incorreto"
+        success_msg: "Token JWT válido e usuário correto!"
+
+    - name: "THEN - Simular redirecionamento para tela principal"
+      uri:
+        url: "{{ frontend_url }}/dashboard"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ jwt_token }}"
+        status_code: [200, 401, 403]
+      register: dashboard_response
+
+    - name: "Criar relatório de teste"
+      copy:
+        content: |
+          ====================================
+          RELATÓRIO DE TESTE BDD - LOGIN
+          ====================================
+          
+          Cenário: Login bem-sucedido
+          Status: PASSED
+          
+          Detalhes do Teste:
+          - Usuário: {{ test_user_email }}
+          - Autenticação: Bem-sucedida
+          - Token JWT: Válido
+          - Tipo de Token: {{ auth_response.json.token_type }}
+          - Expiração: {{ auth_response.json.expires_in }} segundos
+          
+          Validações Executadas:
+          ✓ Usuário existe no sistema
+          ✓ Credenciais válidas
+          ✓ Token JWT gerado corretamente
+          ✓ Token pode ser usado para acessar recursos protegidos
+          
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          ====================================
+        dest: /tmp/bdd_login_test_report.txt
+      
+  handlers:
+    - name: cleanup_test_data
+      debug:
+        msg: "Limpeza de dados de teste pode ser implementada aqui"
+
+  post_tasks:
+    - name: Exibir resumo do teste
+      debug:
+        msg:
+          - "Teste BDD de login concluído com sucesso!"
+          - "Token JWT válido por: {{ auth_response.json.expires_in }} segundos"
+          - "Relatório salvo em: /tmp/bdd_login_test_report.txt"

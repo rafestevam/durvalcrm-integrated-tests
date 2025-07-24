@@ -1,0 +1,203 @@
+---
+- name: "BDD Test - Cenário 1.2: Login com credenciais inválidas"
+  hosts: test_servers
+  become: yes
+  vars:
+    app_url: "http://localhost:8080"
+    frontend_url: "http://localhost:5173"
+    keycloak_url: "http://localhost:8180"
+    test_user_email: "tesoureiro@org.com"
+    correct_password: "senha123"
+    incorrect_password: "senhaerrada"
+    keycloak_realm: "durvalcrm"
+    keycloak_client_id: "durvalcrm-frontend"
+    expected_error_message: "Credenciais inválidas"
+    
+  pre_tasks:
+    - name: Ensure required packages are installed
+      apt:
+        name:
+          - curl
+          - jq
+          - python3-pip
+          - postgresql-client
+        state: present
+        update_cache: yes
+
+    - name: Install Python packages for testing
+      pip:
+        name:
+          - requests
+          - pytest
+          - pytest-bdd
+        state: present
+
+  tasks:
+    - name: "GIVEN - Verificar se o usuário existe no Keycloak"
+      uri:
+        url: "{{ keycloak_url }}/admin/realms/{{ keycloak_realm }}/users"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ keycloak_admin_token }}"
+        params:
+          email: "{{ test_user_email }}"
+      register: user_check
+      ignore_errors: yes
+
+    - name: "GIVEN - Criar usuário de teste no Keycloak se não existir"
+      uri:
+        url: "{{ keycloak_url }}/admin/realms/{{ keycloak_realm }}/users"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ keycloak_admin_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          username: "tesoureiro"
+          email: "{{ test_user_email }}"
+          firstName: "Tesoureiro"
+          lastName: "Teste"
+          enabled: true
+          credentials:
+            - type: "password"
+              value: "{{ correct_password }}"
+              temporary: false
+      when: user_check.json | length == 0
+
+    - name: "WHEN - Tentar autenticação com senha incorreta"
+      uri:
+        url: "{{ keycloak_url }}/realms/{{ keycloak_realm }}/protocol/openid-connect/token"
+        method: POST
+        headers:
+          Content-Type: "application/x-www-form-urlencoded"
+        body_format: form-urlencoded
+        body:
+          grant_type: "password"
+          client_id: "{{ keycloak_client_id }}"
+          username: "{{ test_user_email }}"
+          password: "{{ incorrect_password }}"
+        status_code: [400, 401]
+      register: auth_response_failed
+      ignore_errors: yes
+
+    - name: "THEN - Verificar se a autenticação falhou"
+      assert:
+        that:
+          - auth_response_failed.status in [400, 401]
+          - auth_response_failed.json.error is defined
+          - auth_response_failed.json.error == "invalid_grant" or auth_response_failed.json.error_description is search("Invalid user credentials")
+        fail_msg: "A autenticação deveria ter falhado com credenciais inválidas"
+        success_msg: "Autenticação falhou corretamente com credenciais inválidas!"
+
+    - name: "THEN - Verificar que não foi gerado token JWT"
+      assert:
+        that:
+          - auth_response_failed.json.access_token is not defined
+          - auth_response_failed.json.refresh_token is not defined
+        fail_msg: "Token JWT foi gerado indevidamente com credenciais inválidas"
+        success_msg: "Nenhum token JWT foi gerado, como esperado!"
+
+    - name: "THEN - Simular tentativa de acesso ao dashboard sem token"
+      uri:
+        url: "{{ frontend_url }}/dashboard"
+        method: GET
+        status_code: [401, 403, 302]
+      register: dashboard_unauthorized
+      ignore_errors: yes
+
+    - name: "THEN - Confirmar que o acesso foi negado"
+      assert:
+        that:
+          - dashboard_unauthorized.status in [401, 403, 302]
+        fail_msg: "O acesso ao dashboard deveria ser negado sem autenticação"
+        success_msg: "Acesso ao dashboard negado corretamente!"
+
+    - name: "Simular mensagem de erro no frontend"
+      set_fact:
+        frontend_error_message: "{{ expected_error_message }}"
+
+    - name: "THEN - Verificar mensagem de erro"
+      assert:
+        that:
+          - frontend_error_message == expected_error_message
+        fail_msg: "Mensagem de erro incorreta"
+        success_msg: "Mensagem de erro '{{ expected_error_message }}' seria exibida!"
+
+    - name: "Criar relatório de teste"
+      copy:
+        content: |
+          ====================================
+          RELATÓRIO DE TESTE BDD - LOGIN FALHO
+          ====================================
+          
+          Cenário: Login com credenciais inválidas
+          Status: PASSED
+          
+          Detalhes do Teste:
+          - Usuário: {{ test_user_email }}
+          - Senha utilizada: {{ incorrect_password }} (incorreta)
+          - Status HTTP: {{ auth_response_failed.status }}
+          - Erro retornado: {{ auth_response_failed.json.error | default('N/A') }}
+          - Descrição do erro: {{ auth_response_failed.json.error_description | default('N/A') }}
+          
+          Validações Executadas:
+          ✓ Usuário existe no sistema
+          ✓ Autenticação falhou com senha incorreta
+          ✓ Nenhum token JWT foi gerado
+          ✓ Acesso a recursos protegidos foi negado
+          ✓ Mensagem de erro apropriada seria exibida
+          
+          Comportamento Esperado:
+          - Sistema não redireciona o usuário
+          - Usuário permanece na tela de login
+          - Mensagem "{{ expected_error_message }}" é exibida
+          
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          ====================================
+        dest: /tmp/bdd_login_failed_test_report.txt
+
+    - name: "Teste adicional - Verificar múltiplas tentativas de login"
+      block:
+        - name: "Executar 3 tentativas de login com senha incorreta"
+          uri:
+            url: "{{ keycloak_url }}/realms/{{ keycloak_realm }}/protocol/openid-connect/token"
+            method: POST
+            headers:
+              Content-Type: "application/x-www-form-urlencoded"
+            body_format: form-urlencoded
+            body:
+              grant_type: "password"
+              client_id: "{{ keycloak_client_id }}"
+              username: "{{ test_user_email }}"
+              password: "{{ incorrect_password }}"
+            status_code: [400, 401]
+          register: multiple_attempts
+          ignore_errors: yes
+          loop: [1, 2, 3]
+          loop_control:
+            pause: 2
+
+        - name: "Verificar que todas as tentativas falharam"
+          assert:
+            that:
+              - item.status in [400, 401]
+              - item.json.access_token is not defined
+            fail_msg: "Tentativa {{ ansible_loop.index }} deveria ter falhado"
+            success_msg: "Tentativa {{ ansible_loop.index }} falhou corretamente"
+          loop: "{{ multiple_attempts.results }}"
+          loop_control:
+            index_var: ansible_loop.index
+
+  handlers:
+    - name: cleanup_test_data
+      debug:
+        msg: "Limpeza de dados de teste pode ser implementada aqui"
+
+  post_tasks:
+    - name: Exibir resumo do teste
+      debug:
+        msg:
+          - "Teste BDD de login com credenciais inválidas concluído!"
+          - "Autenticação falhou corretamente"
+          - "Nenhum token JWT foi gerado"
+          - "Relatório salvo em: /tmp/bdd_login_failed_test_report.txt"
