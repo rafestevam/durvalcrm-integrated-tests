@@ -17,6 +17,12 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - durvalcrm-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U durvalcrm_user -d durvalcrm_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # Serviço do Keycloak com Healthcheck
   keycloak:
@@ -25,22 +31,23 @@ services:
     environment:
       - KEYCLOAK_ADMIN=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
-    command: start-dev --import-realm
+      - KC_HTTP_ENABLED=true
+      - KC_HOSTNAME_STRICT=false
+      - KC_HOSTNAME_STRICT_HTTPS=false
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+    command: start-dev --import-realm --health-enabled=true --metrics-enabled=true
     ports:
       - "8080:8080"
+      - "8443:8443"
+      - "9000:9000"
     volumes:
       - keycloak_data:/opt/keycloak/data
       - ./keycloak/themes:/opt/keycloak/themes
       - ./realm-durvalcrm.json:/opt/keycloak/data/import/realm-durvalcrm.json
     networks:
       - durvalcrm-net
-    # Healthcheck para verificar quando o Keycloak está pronto
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 20s
+    # Removido healthcheck temporariamente - verificar manualmente
 
   # API Backend - DurvalCRM
   durvalcrm-api:
@@ -50,11 +57,16 @@ services:
       - DB_USER=durvalcrm_user
       - DB_PASSWORD=durvaldev@123 # Troque por uma senha segura
       - DB_NAME=durvalcrm_dev
-      - DB_URL=jdbc:postgresql://durvalcrm_user:durvaldev@123@postgres-db:5432/durvalcrm_dev
-      - KEYCLOAK_URL=http://keycloak:8080/auth
+      - DB_URL=jdbc:postgresql://postgres-db:5432/durvalcrm_dev
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_CLIENT_ID=durvalcrm-client
     ports:
       - "8082:8082"
+    networks:
+      - durvalcrm-net
+    depends_on:
+      - postgres-db
+      - keycloak
 networks:
   durvalcrm-net:
     driver: bridge

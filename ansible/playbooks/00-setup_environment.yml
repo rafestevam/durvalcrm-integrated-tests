@@ -1,20 +1,21 @@
 ---
 - name: Setup DurvalCRM Environment
   hosts: all
-  become: yes
   vars:
     compose_file_path: "{{ playbook_dir }}/../files/compose.yml"
     realm_file_path: "{{ playbook_dir }}/../files/realm-durvalcrm.json"
-    working_directory: "/opt/durvalcrm"
+    working_directory: "/tmp/durvalcrm"
 
   tasks:
     - name: Update operating system packages
+      become: yes
       package:
         name: "*"
         state: latest
       when: ansible_os_family == "RedHat" or ansible_os_family == "Debian"
 
     - name: Install Podman on RedHat/CentOS/Fedora
+      become: yes
       package:
         name:
           - podman
@@ -25,10 +26,12 @@
     - name: Install Podman on Debian/Ubuntu
       block:
         - name: Update apt cache
+          become: yes
           apt:
             update_cache: yes
 
         - name: Install required packages for adding repositories
+          become: yes
           package:
             name:
               - ca-certificates
@@ -40,6 +43,7 @@
             state: present
 
         - name: Install Podman from official Ubuntu repositories (22.04+)
+          become: yes
           package:
             name:
               - podman
@@ -51,17 +55,20 @@
         - name: Install Podman from Kubic repository (older Ubuntu)
           block:
             - name: Add Kubic repository key
+              become: yes
               apt_key:
                 url: "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_{{ ansible_distribution_version }}/Release.key"
                 state: present
 
             - name: Add Kubic repository
+              become: yes
               apt_repository:
                 repo: "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_{{ ansible_distribution_version }}/ /"
                 state: present
                 update_cache: yes
 
             - name: Install Podman
+              become: yes
               package:
                 name: podman
                 state: present
@@ -70,6 +77,7 @@
         - name: Install podman-compose for Ubuntu 24.04+ (PEP 668 compliant)
           block:
             - name: Check if podman-compose already exists
+              become: yes
               stat:
                 path: /usr/local/bin/podman-compose
               register: podman_compose_exists
@@ -77,6 +85,7 @@
             - name: Install podman-compose using pipx method
               block:
                 - name: Install pipx
+                  become: yes
                   package:
                     name: pipx
                     state: present
@@ -96,6 +105,7 @@
                   register: pipx_install
 
                 - name: Create symlink for podman-compose to be available system-wide
+                  become: yes
                   file:
                     src: "/home/{{ ansible_user }}/.local/bin/podman-compose"
                     dest: "/usr/local/bin/podman-compose"
@@ -112,6 +122,7 @@
           when: ansible_distribution_version is version('24.04', '>=')
 
         - name: Install podman-compose for older Ubuntu versions
+          become: yes
           pip:
             name: podman-compose
             state: present
@@ -124,30 +135,47 @@
         path: "{{ working_directory }}"
         state: directory
         mode: '0755'
+      tags: deploy
 
     - name: Copy compose.yml to working directory
       copy:
         src: "{{ compose_file_path }}"
         dest: "{{ working_directory }}/compose.yml"
         mode: '0644'
+        force: yes
+      tags: deploy
+
+    - name: Getting compose copied file
+      command: cat {{ working_directory }}/compose.yml
+      register: compose_content
+      tags: deploy
+
+    - name: Display compose file content
+      debug:
+        msg: "{{ compose_content.stdout }}"
+      tags: deploy
 
     - name: Copy realm-durvalcrm.json to working directory
       copy:
         src: "{{ realm_file_path }}"
         dest: "{{ working_directory }}/realm-durvalcrm.json"
         mode: '0644'
+        force: yes
+      tags: deploy
 
     - name: Create keycloak themes directory
       file:
         path: "{{ working_directory }}/keycloak/themes"
         state: directory
         mode: '0755'
+      tags: deploy
 
     - name: Create postgres init directory
       file:
         path: "{{ working_directory }}/postgres"
         state: directory
         mode: '0755'
+      tags: deploy
 
     - name: Create PostgreSQL init.sql file
       copy:
@@ -162,29 +190,79 @@
           GRANT ALL ON SCHEMA public TO durvalcrm_user;
         dest: "{{ working_directory }}/postgres/init.sql"
         mode: '0644'
+      tags: deploy
 
-    - name: Start services with podman-compose
-      command: podman-compose up -d
+    - name: Stop existing services if running
+      command: podman-compose down
       args:
         chdir: "{{ working_directory }}"
-      register: compose_result
+      ignore_errors: yes
+      tags: deploy
 
-    - name: Wait for Keycloak to be healthy
-      uri:
-        url: "http://localhost:8080/health/ready"
-        method: GET
-        status_code: 200
-      register: keycloak_health
-      until: keycloak_health.status == 200
+    - name: Start PostgreSQL service first
+      shell: podman-compose up -d postgres-db
+      args:
+        chdir: "{{ working_directory }}"
+      async: 120
+      poll: 10
+      register: postgres_result
+      tags: deploy
+
+    - name: Wait for PostgreSQL to be ready
+      shell: podman-compose exec postgres-db pg_isready -U durvalcrm_user -d durvalcrm_dev
+      args:
+        chdir: "{{ working_directory }}"
+      register: postgres_ready
+      until: postgres_ready.rc == 0
       retries: 30
-      delay: 10
+      delay: 5
+      ignore_errors: yes
+      tags: deploy
+
+    - name: Start Keycloak service
+      shell: podman-compose up -d keycloak
+      args:
+        chdir: "{{ working_directory }}"
+      async: 180
+      poll: 10
+      register: keycloak_result
+      tags: deploy
+
+    - name: Start API service
+      shell: podman-compose up -d durvalcrm-api
+      args:
+        chdir: "{{ working_directory }}"
+      async: 60
+      poll: 5
+      register: api_result
+      when: postgres_ready.rc == 0
+      tags: deploy
 
     - name: Display service status
       command: podman-compose ps
       args:
         chdir: "{{ working_directory }}"
       register: service_status
+      tags: deploy
 
     - name: Show running services
       debug:
         var: service_status.stdout_lines
+      tags: deploy
+
+    - name: Wait for services to be ready
+      pause:
+        seconds: 10
+      tags: deploy
+
+    - name: Final service verification
+      command: podman-compose ps
+      args:
+        chdir: "{{ working_directory }}"
+      register: final_status
+      tags: deploy
+
+    - name: Show final service status
+      debug:
+        var: final_status.stdout_lines
+      tags: deploy

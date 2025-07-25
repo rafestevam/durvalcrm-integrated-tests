@@ -3,3 +3,14 @@
 
 2025-07-24T23:17:19.828011+00:00 WARNING 'ansible_navigator.image_manager.puller._log_message' stderr: Error: unable to inspect "ghcr.io/ansible/community-ansible-dev-tools:latest": failed to find image ghcr.io/ansible/community-ansible-dev-tools:latest: ghcr.io/ansible/community-ansible-dev-tools:latest: image not known
 
+2025-07-24T23:40:01.980159+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
+2025-07-25T12:49:55.808687+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
+2025-07-25T13:08:53.644475+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
+2025-07-25T13:15:17.675965+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
+2025-07-25T13:20:09.808126+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
+2025-07-25T13:22:26.720451+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
+2025-07-25T13:26:04.352340+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
+2025-07-25T13:31:04.730123+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
+2025-07-25T13:39:21.056047+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
+2025-07-25T13:48:12.764292+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
+2025-07-25T14:03:04.288831+00:00 WARNING 'ansible_navigator.run' Dirty exit, killing the pid
