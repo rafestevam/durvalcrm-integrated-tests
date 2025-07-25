@@ -58,7 +58,7 @@ services:
       - DB_PASSWORD=durvaldev@123 # Troque por uma senha segura
       - DB_NAME=durvalcrm_dev
       - DB_URL=jdbc:postgresql://postgres-db:5432/durvalcrm_dev
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_CLIENT_ID=durvalcrm-client
     ports:
       - "8082:8082"
@@ -67,6 +67,16 @@ services:
     depends_on:
       - postgres-db
       - keycloak
+
+  # Frontend - DurvalCRM
+  durvalcrm-frontend:
+    image: docker.io/rafestevam/durvalcrm-frontend:latest
+    container_name: durvalcrm_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - keycloak
+      - durvalcrm-api
 networks:
   durvalcrm-net:
     driver: bridge
