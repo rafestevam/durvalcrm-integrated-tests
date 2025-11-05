@@ -1,0 +1,155 @@
+# Exemplo de workflow para GitHub Actions
+# Copie este arquivo para .github/workflows/e2e-tests.yml no repositório principal
+
+name: E2E Tests - DurvalCRM
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch: # Permite execução manual
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  e2e-tests:
+    name: Testes Integrados de Negócio
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        # Executar em múltiplos navegadores (opcional)
+        browser: [chromium]
+        # browser: [chromium, firefox, webkit]
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: durvalcrm-integrated-testing/package-lock.json
+
+      - name: 📦 Instalar dependências do projeto de testes
+        working-directory: ./durvalcrm-integrated-testing
+        run: npm ci
+
+      - name: 🎭 Instalar navegadores do Playwright
+        working-directory: ./durvalcrm-integrated-testing
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      # ===== Setup da Aplicação =====
+
+      - name: 🐳 Iniciar serviços (Podman Compose)
+        working-directory: .
+        run: |
+          podman-compose up -d
+          # Aguardar serviços estarem prontos
+          sleep 10
+
+      - name: ☕ Setup Java para Backend
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
+      - name: 🏗️ Build e Deploy Backend
+        working-directory: ./durvalcrm-j2ee
+        run: |
+          mvn clean package -DskipTests
+          mvn wildfly:deploy
+
+      - name: 🎨 Build Frontend
+        working-directory: ./durvalcrm-frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: 🚀 Iniciar Frontend
+        working-directory: ./durvalcrm-frontend
+        run: |
+          npm run dev &
+          # Aguardar frontend estar pronto
+          npx wait-on http://localhost:3000 --timeout 60000
+
+      # ===== Executar Testes =====
+
+      - name: 🧪 Executar Testes E2E
+        working-directory: ./durvalcrm-integrated-testing
+        run: npm test
+        env:
+          BASE_URL: http://localhost:3000
+          CI: true
+
+      # ===== Artefatos e Relatórios =====
+
+      - name: 📊 Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: durvalcrm-integrated-testing/playwright-report/
+          retention-days: 30
+
+      - name: 📸 Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.browser }}
+          path: durvalcrm-integrated-testing/test-results/
+          retention-days: 30
+
+      - name: 📹 Upload Videos
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: videos-${{ matrix.browser }}
+          path: durvalcrm-integrated-testing/test-results/videos/
+          retention-days: 7
+
+      # ===== Cleanup =====
+
+      - name: 🧹 Parar serviços
+        if: always()
+        working-directory: .
+        run: podman-compose down
+
+  # Job para publicar relatório em GitHub Pages (opcional)
+  publish-report:
+    name: Publicar Relatório
+    needs: e2e-tests
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: 📥 Download relatório
+        uses: actions/download-artifact@v4
+        with:
+          name: playwright-report-chromium
+          path: public
+
+      - name: 📤 Deploy para GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          destination_dir: e2e-reports/${{ github.run_number }}
+
+      - name: 💬 Comentar PR com link do relatório
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '📊 [Ver relatório de testes E2E](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/e2e-reports/${{ github.run_number }}/)'
+            })

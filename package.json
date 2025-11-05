@@ -1,0 +1,31 @@
+{
+  "name": "durvalcrm-integrated-testing",
+  "version": "1.0.0",
+  "description": "DurvalCRM Integrated Business Tests with Playwright",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "test:sprint01": "playwright test tests/sprint01",
+    "test:us060": "playwright test tests/sprint01/us060-contas-bancarias.spec.ts",
+    "test:us061": "playwright test tests/sprint01/us061-registro-recebimentos.spec.ts",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen"
+  },
+  "keywords": [
+    "playwright",
+    "e2e",
+    "business-tests",
+    "durvalcrm"
+  ],
+  "author": "DurvalCRM Team",
+  "license": "Apache-2.0",
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  }
+}
