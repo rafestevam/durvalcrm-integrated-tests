@@ -289,6 +289,24 @@ jobs:
 5. Mantenha os testes independentes (não dependem da ordem)
 6. Documente cenários complexos
 
+## 🐛 Troubleshooting
+
+Se encontrar problemas ao executar os testes, consulte o [TROUBLESHOOTING.md](TROUBLESHOOTING.md) para:
+
+- 🔧 Ferramentas de debug (teste de debug de login)
+- 🐛 Soluções para problemas comuns
+- 📊 Scripts de verificação de ambiente
+- 🆘 Como coletar informações para suporte
+
+### Quick Debug
+
+```bash
+# Teste de diagnóstico com logs detalhados
+npm run test:debug-login
+```
+
+Isso irá capturar screenshots, listar elementos da página e salvar HTML para análise.
+
 ## 📄 Licença
 
 Apache 2.0 - Mesmo da aplicação DurvalCRM

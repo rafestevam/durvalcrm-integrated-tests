@@ -96,34 +96,48 @@ Se esse teste passar, sua configuração está correta! ✅
 
 ## 🐛 Troubleshooting
 
-### Problema: "Timeout waiting for locator"
+### Debug Rápido
 
-**Causa**: Aplicação não está rodando ou URL está incorreta.
+Se encontrar problemas, execute primeiro o teste de diagnóstico:
 
-**Solução**:
-1. Verifique se a aplicação está rodando: `http://localhost:9080/crm`
-2. Verifique a variável `BASE_URL` no `.env` ou `playwright.config.ts`
-3. Confirme que o WildFly está rodando e a aplicação deployada
+```bash
+npm run test:debug-login
+```
 
-### Problema: "Login não funciona"
+Isso irá:
+- ✅ Capturar screenshots de cada etapa
+- ✅ Listar todos os elementos da página
+- ✅ Salvar HTML para inspeção
+- ✅ Verificar conectividade
 
-**Causa**: Keycloak não está configurado ou credenciais incorretas.
+### Problemas Comuns
 
-**Solução**:
-1. Verifique se Keycloak está rodando: `http://localhost:8080`
-2. Verifique as credenciais no `auth.helper.ts` (padrão: tesouraria/cairbar@2025)
-3. Certifique-se que o realm e cliente estão configurados
-4. Confirme que o usuário 'tesouraria' existe no Keycloak
+#### Timeout esperando elementos
 
-### Problema: "Element not found"
+```bash
+# 1. Verificar se tudo está rodando
+curl http://localhost:9080/crm
+curl http://localhost:8080
 
-**Causa**: O elemento no frontend não tem o `data-testid` esperado.
+# 2. Executar teste de debug
+npm run test:debug-login
 
-**Solução**:
-1. Abra o teste em modo debug: `npm run test:debug`
-2. Inspecione o DOM para encontrar o seletor correto
-3. Atualize o teste com o seletor correto
-4. Ou adicione `data-testid` no componente do frontend
+# 3. Ver screenshots gerados
+ls test-results/
+```
+
+#### Login não funciona
+
+```bash
+# Verificar credenciais (padrão: tesouraria / cairbar@2025)
+# Verificar se usuário existe no Keycloak
+# Executar teste de debug para ver logs detalhados
+npm run test:debug-login
+```
+
+### Documentação Completa
+
+Para guia completo de troubleshooting, consulte [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ## 📊 Ver Relatório de Testes
 

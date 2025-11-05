@@ -11,6 +11,8 @@
     "test:sprint01": "playwright test tests/sprint01",
     "test:us060": "playwright test tests/sprint01/us060-contas-bancarias.spec.ts",
     "test:us061": "playwright test tests/sprint01/us061-registro-recebimentos.spec.ts",
+    "test:debug-login": "playwright test tests/debug-login.spec.ts --headed",
+    "test:debug-login-ui": "playwright test tests/debug-login.spec.ts --ui",
     "report": "playwright show-report",
     "codegen": "playwright codegen"
   },

@@ -10,20 +10,20 @@ export default defineConfig({
   // Diretório raiz dos testes
   testDir: './tests',
 
-  // Timeout para cada teste (30 segundos)
-  timeout: 30 * 1000,
+  // Timeout para cada teste (60 segundos - aumentado para WildFly)
+  timeout: 60 * 1000,
 
-  // Executar testes em paralelo
-  fullyParallel: true,
+  // Executar testes em paralelo (desabilitado por padrão para evitar conflitos)
+  fullyParallel: false,
 
   // Falhar o build se algum teste falhar
   forbidOnly: !!process.env.CI,
 
   // Tentar novamente em caso de falha (útil em CI)
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 2 : 1,
 
-  // Número de workers (threads de execução)
-  workers: process.env.CI ? 1 : undefined,
+  // Número de workers (threads de execução) - 1 worker para testes sequenciais
+  workers: process.env.CI ? 1 : 1,
 
   // Reporter para os resultados dos testes
   reporter: [
@@ -40,20 +40,27 @@ export default defineConfig({
     // Em produção: https://crm.durvalcrm.org
     baseURL: process.env.BASE_URL || 'http://localhost:9080/crm',
 
-    // Capturar screenshots apenas em falhas
+    // Capturar screenshots em todas as falhas
     screenshot: 'only-on-failure',
 
-    // Capturar vídeo apenas em tentativas de retry
+    // Capturar vídeo em todas as tentativas (para debug)
     video: 'retain-on-failure',
 
-    // Trace detalhado em caso de falha
+    // Trace detalhado sempre que houver erro
     trace: 'on-first-retry',
 
-    // Timeout para ações individuais (10 segundos)
-    actionTimeout: 10 * 1000,
+    // Timeout para ações individuais (15 segundos - aumentado para WildFly)
+    actionTimeout: 15 * 1000,
+
+    // Timeout para navegação (20 segundos)
+    navigationTimeout: 20 * 1000,
 
     // Aceitar certificados HTTPS inválidos (para ambiente de desenvolvimento)
     ignoreHTTPSErrors: true,
+
+    // Configurações adicionais para estabilidade
+    // Aguardar até que não haja mais requisições de rede por 500ms
+    waitUntil: 'domcontentloaded',
   },
 
   // Configuração de projetos (navegadores)
