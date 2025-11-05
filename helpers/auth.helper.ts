@@ -12,28 +12,31 @@ export class AuthHelper {
   /**
    * Realiza login no sistema através do Keycloak
    *
-   * @param username Nome de usuário
-   * @param password Senha
+   * @param username Nome de usuário (padrão: tesouraria)
+   * @param password Senha (padrão: cairbar@2025)
    */
-  async login(username: string = 'admin', password: string = 'admin') {
-    // Navegar para a página inicial
-    await this.page.goto('/');
+  async login(username: string = 'tesouraria', password: string = 'cairbar@2025') {
+    // Navegar para a página de login
+    await this.page.goto('/login');
 
-    // Verificar se já está logado
-    const isLoggedIn = await this.page.locator('[data-testid="user-menu"]').isVisible().catch(() => false);
-
-    if (isLoggedIn) {
+    // Verificar se já está logado (redirect para dashboard)
+    const currentUrl = this.page.url();
+    if (currentUrl.includes('/dashboard')) {
       console.log('Usuário já está autenticado');
       return;
     }
 
-    // Clicar no botão de login
-    await this.page.click('button:has-text("Entrar")');
+    // Verificar se existe botão "Entrar" ou se já está na página do Keycloak
+    const hasLoginButton = await this.page.locator('button:has-text("Entrar")').isVisible().catch(() => false);
 
-    // Aguardar redirecionamento para Keycloak
-    await this.page.waitForURL(/.*keycloak.*/);
+    if (hasLoginButton) {
+      // Clicar no botão de login para redirecionar ao Keycloak
+      await this.page.click('button:has-text("Entrar")');
+      // Aguardar redirecionamento para Keycloak
+      await this.page.waitForURL(/.*keycloak.*/, { timeout: 5000 }).catch(() => {});
+    }
 
-    // Preencher credenciais
+    // Preencher credenciais no Keycloak
     await this.page.fill('input[name="username"]', username);
     await this.page.fill('input[name="password"]', password);
 
@@ -41,21 +44,31 @@ export class AuthHelper {
     await this.page.click('button[type="submit"]');
 
     // Aguardar redirecionamento de volta para a aplicação
-    await this.page.waitForURL(/.*\/dashboard.*/);
+    await this.page.waitForURL(/.*\/dashboard.*/, { timeout: 10000 });
 
-    // Confirmar que está autenticado
-    await this.page.waitForSelector('[data-testid="user-menu"]');
+    // Aguardar que a página esteja completamente carregada
+    await this.page.waitForLoadState('networkidle');
   }
 
   /**
    * Realiza logout do sistema
    */
   async logout() {
-    // Verificar se está logado
-    const isLoggedIn = await this.page.locator('[data-testid="user-menu"]').isVisible().catch(() => false);
+    // Verificar se está na página de dashboard/logado
+    const currentUrl = this.page.url();
 
-    if (!isLoggedIn) {
+    if (!currentUrl.includes('/dashboard') && !currentUrl.includes('/associados') && !currentUrl.includes('/contas')) {
       console.log('Usuário já está deslogado');
+      return;
+    }
+
+    // Verificar se o menu do usuário está visível
+    const hasUserMenu = await this.page.locator('[data-testid="user-menu"]').isVisible().catch(() => false);
+
+    if (!hasUserMenu) {
+      // Tentar sair pela navegação direta
+      await this.page.goto('/logout').catch(() => {});
+      await this.page.waitForURL(/.*\/login.*/, { timeout: 5000 });
       return;
     }
 
@@ -66,6 +79,6 @@ export class AuthHelper {
     await this.page.click('button:has-text("Sair")');
 
     // Aguardar redirecionamento para página de login
-    await this.page.waitForURL(/.*\/(login|$)/);
+    await this.page.waitForURL(/.*\/login.*/, { timeout: 5000 });
   }
 }

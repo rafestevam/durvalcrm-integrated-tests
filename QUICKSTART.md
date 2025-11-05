@@ -16,9 +16,13 @@ cp .env.example .env
 # Editar .env com as configurações do seu ambiente
 
 # 4. Verificar que a aplicação está rodando
-# Frontend: http://localhost:3000
-# Backend: http://localhost:8082 ou https://localhost:9991
+# Aplicação DurvalCRM: http://localhost:9080/crm
+# Backend API: http://localhost:8082 ou https://localhost:9991
 # Keycloak: http://localhost:8080
+
+# 5. Credenciais de teste
+# Usuário: tesouraria
+# Senha: cairbar@2025
 ```
 
 ## 🏃 Executando os Testes
@@ -97,8 +101,9 @@ Se esse teste passar, sua configuração está correta! ✅
 **Causa**: Aplicação não está rodando ou URL está incorreta.
 
 **Solução**:
-1. Verifique se o frontend está rodando: `http://localhost:3000`
+1. Verifique se a aplicação está rodando: `http://localhost:9080/crm`
 2. Verifique a variável `BASE_URL` no `.env` ou `playwright.config.ts`
+3. Confirme que o WildFly está rodando e a aplicação deployada
 
 ### Problema: "Login não funciona"
 
@@ -106,8 +111,9 @@ Se esse teste passar, sua configuração está correta! ✅
 
 **Solução**:
 1. Verifique se Keycloak está rodando: `http://localhost:8080`
-2. Verifique as credenciais no `auth.helper.ts` (padrão: admin/admin)
+2. Verifique as credenciais no `auth.helper.ts` (padrão: tesouraria/cairbar@2025)
 3. Certifique-se que o realm e cliente estão configurados
+4. Confirme que o usuário 'tesouraria' existe no Keycloak
 
 ### Problema: "Element not found"
 

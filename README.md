@@ -103,13 +103,16 @@ npm run report
 Crie um arquivo `.env` (opcional) para configurar a URL base da aplicação:
 
 ```env
-BASE_URL=http://localhost:3000
+BASE_URL=http://localhost:9080/crm
+TEST_USERNAME=tesouraria
+TEST_PASSWORD=cairbar@2025
 ```
 
 ### Configurações no `playwright.config.ts`
 
 - **baseURL**: URL da aplicação a ser testada
-  - Desenvolvimento: `http://localhost:3000`
+  - Desenvolvimento (WildFly): `http://localhost:9080/crm`
+  - Desenvolvimento (Vite): `http://localhost:3000`
   - Staging: `https://localhost:9443`
   - Produção: `https://crm.durvalcrm.org`
 
