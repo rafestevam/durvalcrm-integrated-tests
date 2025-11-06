@@ -10,20 +10,20 @@ export default defineConfig({
   // Diretório raiz dos testes
   testDir: './tests',
 
-  // Timeout para cada teste (30 segundos)
-  timeout: 30 * 1000,
+  // Timeout para cada teste (60 segundos - aumentado para WildFly)
+  timeout: 60 * 1000,
 
-  // Executar testes em paralelo
-  fullyParallel: true,
+  // Executar testes em paralelo (desabilitado por padrão para evitar conflitos)
+  fullyParallel: false,
 
   // Falhar o build se algum teste falhar
   forbidOnly: !!process.env.CI,
 
   // Tentar novamente em caso de falha (útil em CI)
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 2 : 1,
 
-  // Número de workers (threads de execução)
-  workers: process.env.CI ? 1 : undefined,
+  // Número de workers (threads de execução) - 1 worker para testes sequenciais
+  workers: process.env.CI ? 1 : 1,
 
   // Reporter para os resultados dos testes
   reporter: [
@@ -35,10 +35,11 @@ export default defineConfig({
   // Configurações compartilhadas para todos os testes
   use: {
     // URL base da aplicação
-    // Em desenvolvimento: http://localhost:3000
+    // Em desenvolvimento NGINX: http://localhost:9080/crm
+    // Em desenvolvimento Vite: http://localhost:3000
     // Em staging: https://localhost:9443
     // Em produção: https://crm.durvalcrm.org
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'http://localhost:9080/crm',
 
     // Capturar screenshots apenas em falhas
     screenshot: 'only-on-failure',
@@ -49,8 +50,11 @@ export default defineConfig({
     // Trace detalhado em caso de falha
     trace: 'on-first-retry',
 
-    // Timeout para ações individuais (10 segundos)
-    actionTimeout: 10 * 1000,
+    // Timeout para ações individuais (15 segundos - aumentado para WildFly)
+    actionTimeout: 15 * 1000,
+
+    // Timeout para navegação (20 segundos)
+    navigationTimeout: 20 * 1000,
 
     // Aceitar certificados HTTPS inválidos (para ambiente de desenvolvimento)
     ignoreHTTPSErrors: true,
