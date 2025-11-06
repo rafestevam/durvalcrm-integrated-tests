@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AuthHelper } from '../helpers/auth.helper';
+import { writeFileSync } from 'fs';
 
 /**
  * Teste de Debug - Login
@@ -45,6 +46,7 @@ test.describe('Debug - Login Flow', () => {
       // Verificar se está autenticado
       const urlAposLogin = page.url();
       expect(
+        urlAposLogin.includes('/painel') ||
         urlAposLogin.includes('/dashboard') ||
         urlAposLogin.includes('/associados') ||
         urlAposLogin.includes('/contas')
@@ -89,8 +91,7 @@ test.describe('Debug - Login Flow', () => {
 
       // Capturar HTML da página
       const html = await page.content();
-      const fs = require('fs');
-      fs.writeFileSync('test-results/debug-page-content.html', html);
+      writeFileSync('test-results/debug-page-content.html', html);
       console.log('\nHTML da página salvo em: test-results/debug-page-content.html');
 
       console.log('='.repeat(80));

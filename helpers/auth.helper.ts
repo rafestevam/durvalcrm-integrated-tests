@@ -30,8 +30,8 @@ export class AuthHelper {
       const currentUrl = this.page.url();
       console.log(`[AUTH] URL atual: ${currentUrl}`);
 
-      // Verificar se já está logado (redirect para dashboard)
-      if (currentUrl.includes('/dashboard') || currentUrl.includes('/associados')) {
+      // Verificar se já está logado (redirect para painel/dashboard ou outras páginas internas)
+      if (currentUrl.includes('/painel') || currentUrl.includes('/dashboard') || currentUrl.includes('/associados')) {
         console.log('[AUTH] Usuário já está autenticado - redirecionado para área logada');
         return;
       }
@@ -231,7 +231,7 @@ export class AuthHelper {
 
     try {
       // Aguardar redirecionamento para a aplicação
-      await this.page.waitForURL(/.*\/(dashboard|associados|contas|mensalidades).*/, {
+      await this.page.waitForURL(/.*\/(painel|dashboard|associados|contas|mensalidades).*/, {
         timeout: 15000
       });
 
@@ -260,10 +260,10 @@ export class AuthHelper {
    * Realiza logout do sistema
    */
   async logout() {
-    // Verificar se está na página de dashboard/logado
+    // Verificar se está na página de painel/dashboard/logado
     const currentUrl = this.page.url();
 
-    if (!currentUrl.includes('/dashboard') && !currentUrl.includes('/associados') && !currentUrl.includes('/contas')) {
+    if (!currentUrl.includes('/painel') && !currentUrl.includes('/dashboard') && !currentUrl.includes('/associados') && !currentUrl.includes('/contas')) {
       console.log('Usuário já está deslogado');
       return;
     }
