@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { AuthHelper } from '../helpers/auth.helper';
-import { NavigationHelper } from '../helpers/navigation.helper';
-import { SelectorHelper } from '../helpers/selector.helper';
-import { criarAssociadoUnico } from '../fixtures/associados.fixture';
+import { AuthHelper } from '../../helpers/auth.helper';
+import { NavigationHelper } from '../../helpers/navigation.helper';
+import { SelectorHelper } from '../../helpers/selector.helper';
+import { criarAssociadoUnico } from '../../fixtures/associados.fixture';
 
 /**
  * CRUD Completo - Mensalidades

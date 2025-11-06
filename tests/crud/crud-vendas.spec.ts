@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { AuthHelper } from '../helpers/auth.helper';
-import { NavigationHelper } from '../helpers/navigation.helper';
-import { SelectorHelper } from '../helpers/selector.helper';
+import { AuthHelper } from '../../helpers/auth.helper';
+import { NavigationHelper } from '../../helpers/navigation.helper';
+import { SelectorHelper } from '../../helpers/selector.helper';
 
 /**
  * CRUD Completo - Vendas
