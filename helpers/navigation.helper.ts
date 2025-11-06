@@ -66,6 +66,14 @@ export class NavigationHelper {
   }
 
   /**
+   * Navega para a página de Mensalidades
+   */
+  async goToMensalidades() {
+    await this.page.goto('/mensalidades');
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  /**
    * Usa o menu de navegação lateral para ir a uma seção
    *
    * @param sectionName Nome da seção no menu
