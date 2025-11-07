@@ -4,7 +4,13 @@ import { Page } from '@playwright/test';
  * Helper para autenticação no DurvalCRM via Keycloak
  *
  * O sistema usa OAuth2/OIDC PKCE flow com Keycloak.
- * Este helper encapsula a lógica de login para reutilização nos testes.
+ *
+ * Processo de login:
+ * 1. Acessar http://localhost:9080/crm/login
+ * 2. Clicar no botão "Entrar com Keycloak"
+ * 3. Preencher credenciais no Keycloak
+ * 4. Aguardar redirecionamento
+ * 5. Redirecionar para http://localhost:9080/crm/painel
  */
 export class AuthHelper {
   constructor(private page: Page) {}
@@ -16,78 +22,60 @@ export class AuthHelper {
    * @param password Senha (padrão: cairbar@2025)
    */
   async login(username: string = 'tesouraria', password: string = 'cairbar@2025') {
-    console.log(`[AUTH] Iniciando login com usuário: ${username}`);
+    console.log(`[AUTH] Iniciando processo de login com usuário: ${username}`);
 
     try {
-      // Navegar para a página de login
-      console.log('[AUTH] Navegando para /login');
-      await this.page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 15000 });
-
-      // Aguardar um pouco para a página carregar
+      // 1. Acessar página de login
+      console.log('[AUTH] Passo 1: Acessando /login');
+      await this.page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 20000 });
       await this.page.waitForTimeout(1000);
 
-      // Verificar URL atual
       const currentUrl = this.page.url();
       console.log(`[AUTH] URL atual: ${currentUrl}`);
 
-      // Verificar se já está logado (redirect para painel/dashboard ou outras páginas internas)
-      if (currentUrl.includes('/painel') || currentUrl.includes('/dashboard') || currentUrl.includes('/associados')) {
-        console.log('[AUTH] Usuário já está autenticado - redirecionado para área logada');
+      // Verificar se já está autenticado (redirecionou para /painel)
+      if (currentUrl.includes('/painel')) {
+        console.log('[AUTH] ✅ Usuário já está autenticado - na página /painel');
         return;
       }
 
-      // Tentar diferentes estratégias de login baseado no que encontramos na página
+      // 2. Clicar no botão "Entrar com Keycloak"
+      console.log('[AUTH] Passo 2: Procurando botão "Entrar com Keycloak"');
 
-      // Estratégia 1: Verificar se já está na página do Keycloak
-      const isKeycloakPage = currentUrl.includes('keycloak') ||
-                            await this.page.locator('#kc-form-login').isVisible().catch(() => false) ||
-                            await this.page.locator('.login-pf-page').isVisible().catch(() => false);
+      const botaoKeycloak = await this.encontrarBotaoKeycloak();
 
-      if (isKeycloakPage) {
-        console.log('[AUTH] Já está na página do Keycloak');
-        await this.fillKeycloakCredentials(username, password);
-        await this.waitForLoginSuccess();
-        return;
-      }
-
-      // Estratégia 2: Procurar por botão "Entrar" na página da aplicação
-      console.log('[AUTH] Procurando botão de login na aplicação');
-      const loginButton = await this.findLoginButton();
-
-      if (loginButton) {
-        console.log('[AUTH] Botão de login encontrado, clicando...');
-        await loginButton.click();
+      if (botaoKeycloak) {
+        console.log('[AUTH] Botão "Entrar com Keycloak" encontrado, clicando...');
+        await botaoKeycloak.click();
 
         // Aguardar redirecionamento para Keycloak
-        console.log('[AUTH] Aguardando redirecionamento para Keycloak...');
-        await this.page.waitForURL(/.*keycloak.*/, { timeout: 10000 }).catch(async () => {
-          // Se não redirecionou para keycloak, pode já estar na página de login do keycloak
-          console.log('[AUTH] Não detectou redirect para Keycloak, verificando se já está lá...');
-          await this.page.waitForTimeout(1000);
-        });
-
-        await this.fillKeycloakCredentials(username, password);
-        await this.waitForLoginSuccess();
-        return;
+        console.log('[AUTH] Passo 3: Aguardando redirecionamento para Keycloak...');
+        await this.page.waitForTimeout(2000);
+      } else {
+        console.log('[AUTH] Botão "Entrar com Keycloak" não encontrado, verificando se já está no Keycloak...');
       }
 
-      // Estratégia 3: Pode ser que a página já mostre os campos de login diretamente
-      console.log('[AUTH] Tentando preencher credenciais diretamente (sem botão)');
-      await this.fillKeycloakCredentials(username, password);
-      await this.waitForLoginSuccess();
+      // 3. Preencher credenciais no Keycloak
+      console.log('[AUTH] Passo 4: Preenchendo credenciais no Keycloak');
+      await this.preencherCredenciaisKeycloak(username, password);
+
+      // 4. Aguardar redirecionamento de volta para a aplicação
+      console.log('[AUTH] Passo 5: Aguardando redirecionamento para /painel');
+      await this.aguardarRedirecionamentoPainel();
+
+      console.log('[AUTH] ✅ Login concluído com sucesso!');
+      console.log(`[AUTH] URL final: ${this.page.url()}`);
 
     } catch (error) {
-      console.error('[AUTH] Erro durante o login:', error);
+      console.error('[AUTH] ❌ Erro durante o login:', error);
 
       // Capturar screenshot para debug
       const timestamp = Date.now();
-      await this.page.screenshot({
-        path: `test-results/login-error-${timestamp}.png`,
-        fullPage: true
-      });
+      const screenshotPath = `test-results/login-error-${timestamp}.png`;
+      await this.page.screenshot({ path: screenshotPath, fullPage: true });
 
-      console.log(`[AUTH] Screenshot salvo em: test-results/login-error-${timestamp}.png`);
-      console.log(`[AUTH] URL atual no erro: ${this.page.url()}`);
+      console.log(`[AUTH] Screenshot de erro salvo em: ${screenshotPath}`);
+      console.log(`[AUTH] URL no momento do erro: ${this.page.url()}`);
       console.log(`[AUTH] Título da página: ${await this.page.title()}`);
 
       throw error;
@@ -95,51 +83,51 @@ export class AuthHelper {
   }
 
   /**
-   * Procura por um botão de login na página
+   * Procura pelo botão "Entrar com Keycloak" na página
    */
-  private async findLoginButton() {
-    // Tentar vários seletores possíveis para o botão de login
-    const selectors = [
+  private async encontrarBotaoKeycloak() {
+    const seletoresPossiveis = [
+      'button:has-text("Entrar com Keycloak")',
       'button:has-text("Entrar")',
-      'button:has-text("Login")',
+      'a:has-text("Entrar com Keycloak")',
       'a:has-text("Entrar")',
+      '[data-testid="btn-login-keycloak"]',
       '[data-testid="btn-login"]',
-      'button[type="button"]:has-text("Entrar")',
-      '.btn-login',
-      '#login-button'
+      'button[type="button"]:has-text("Entrar")'
     ];
 
-    for (const selector of selectors) {
-      const element = this.page.locator(selector).first();
-      const isVisible = await element.isVisible().catch(() => false);
+    for (const seletor of seletoresPossiveis) {
+      try {
+        const elemento = this.page.locator(seletor).first();
+        const isVisible = await elemento.isVisible({ timeout: 2000 });
 
-      if (isVisible) {
-        console.log(`[AUTH] Botão de login encontrado com seletor: ${selector}`);
-        return element;
+        if (isVisible) {
+          console.log(`[AUTH] Botão encontrado com seletor: ${seletor}`);
+          return elemento;
+        }
+      } catch (e) {
+        // Continuar tentando próximo seletor
       }
     }
 
-    console.log('[AUTH] Nenhum botão de login encontrado');
     return null;
   }
 
   /**
    * Preenche as credenciais na página do Keycloak
    */
-  private async fillKeycloakCredentials(username: string, password: string) {
-    console.log('[AUTH] Preenchendo credenciais no Keycloak');
-
-    // Aguardar a página carregar completamente
+  private async preencherCredenciaisKeycloak(username: string, password: string) {
+    // Aguardar a página do Keycloak carregar
     await this.page.waitForLoadState('domcontentloaded');
     await this.page.waitForTimeout(500);
 
-    // Tentar diferentes seletores para o campo de username
+    // Preencher username
+    console.log('[AUTH] Preenchendo username...');
     const usernameSelectors = [
       'input[name="username"]',
       'input[id="username"]',
       'input[type="text"]',
-      '#username',
-      'input.form-control[name="username"]'
+      '#username'
     ];
 
     let usernameFilled = false;
@@ -147,8 +135,8 @@ export class AuthHelper {
       try {
         const field = this.page.locator(selector).first();
         if (await field.isVisible({ timeout: 2000 })) {
-          console.log(`[AUTH] Campo username encontrado: ${selector}`);
           await field.fill(username);
+          console.log(`[AUTH] Username preenchido usando: ${selector}`);
           usernameFilled = true;
           break;
         }
@@ -158,16 +146,16 @@ export class AuthHelper {
     }
 
     if (!usernameFilled) {
-      throw new Error('Campo de username não encontrado');
+      throw new Error('Campo de username não encontrado na página do Keycloak');
     }
 
-    // Tentar diferentes seletores para o campo de password
+    // Preencher password
+    console.log('[AUTH] Preenchendo password...');
     const passwordSelectors = [
       'input[name="password"]',
       'input[id="password"]',
       'input[type="password"]',
-      '#password',
-      'input.form-control[name="password"]'
+      '#password'
     ];
 
     let passwordFilled = false;
@@ -175,8 +163,8 @@ export class AuthHelper {
       try {
         const field = this.page.locator(selector).first();
         if (await field.isVisible({ timeout: 2000 })) {
-          console.log(`[AUTH] Campo password encontrado: ${selector}`);
           await field.fill(password);
+          console.log(`[AUTH] Password preenchido usando: ${selector}`);
           passwordFilled = true;
           break;
         }
@@ -186,10 +174,11 @@ export class AuthHelper {
     }
 
     if (!passwordFilled) {
-      throw new Error('Campo de password não encontrado');
+      throw new Error('Campo de password não encontrado na página do Keycloak');
     }
 
-    // Procurar e clicar no botão de submit
+    // Clicar no botão de submit
+    console.log('[AUTH] Clicando no botão de submit...');
     const submitSelectors = [
       'button[type="submit"]',
       'input[type="submit"]',
@@ -197,8 +186,7 @@ export class AuthHelper {
       '#kc-login',
       'button:has-text("Entrar")',
       'button:has-text("Sign In")',
-      'button:has-text("Login")',
-      '.btn-primary[type="submit"]'
+      'button:has-text("Login")'
     ];
 
     let submitClicked = false;
@@ -206,8 +194,8 @@ export class AuthHelper {
       try {
         const button = this.page.locator(selector).first();
         if (await button.isVisible({ timeout: 2000 })) {
-          console.log(`[AUTH] Botão submit encontrado: ${selector}`);
           await button.click();
+          console.log(`[AUTH] Submit clicado usando: ${selector}`);
           submitClicked = true;
           break;
         }
@@ -217,39 +205,43 @@ export class AuthHelper {
     }
 
     if (!submitClicked) {
-      throw new Error('Botão de submit não encontrado');
+      throw new Error('Botão de submit não encontrado na página do Keycloak');
     }
 
-    console.log('[AUTH] Credenciais preenchidas e formulário submetido');
+    console.log('[AUTH] Credenciais submetidas com sucesso');
   }
 
   /**
-   * Aguarda o login ser bem sucedido
+   * Aguarda o redirecionamento para /painel após login bem-sucedido
    */
-  private async waitForLoginSuccess() {
-    console.log('[AUTH] Aguardando login ser concluído...');
-
+  private async aguardarRedirecionamentoPainel() {
     try {
-      // Aguardar redirecionamento para a aplicação
+      // Aguardar URL conter /painel, /dashboard, ou outras páginas internas
       await this.page.waitForURL(/.*\/(painel|dashboard|associados|contas|mensalidades).*/, {
-        timeout: 15000
+        timeout: 20000
       });
 
-      console.log('[AUTH] Login bem-sucedido! Redirecionado para:', this.page.url());
+      console.log('[AUTH] ✅ Redirecionamento detectado para:', this.page.url());
 
-      // Aguardar que a página esteja completamente carregada
-      await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {
-        console.log('[AUTH] Timeout aguardando networkidle, continuando...');
+      // Aguardar página carregar completamente
+      await this.page.waitForLoadState('domcontentloaded', { timeout: 10000 });
+
+      // Tentar aguardar networkidle, mas não falhar se der timeout
+      await this.page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {
+        console.log('[AUTH] ⚠️  Timeout aguardando networkidle, mas continuando...');
       });
 
     } catch (error) {
-      console.error('[AUTH] Erro aguardando login concluir:', error);
+      console.error('[AUTH] ❌ Erro aguardando redirecionamento:', error);
       console.log('[AUTH] URL atual:', this.page.url());
 
-      // Verificar se há mensagem de erro
-      const errorMsg = await this.page.locator('.alert-error, .error, .alert-danger').textContent().catch(() => '');
+      // Verificar se há mensagem de erro no Keycloak
+      const errorMsg = await this.page.locator('.alert-error, .error, .alert-danger, .kc-feedback-text')
+        .textContent()
+        .catch(() => '');
+
       if (errorMsg) {
-        console.error('[AUTH] Mensagem de erro na página:', errorMsg);
+        console.error('[AUTH] Mensagem de erro encontrada:', errorMsg);
       }
 
       throw error;
@@ -260,31 +252,74 @@ export class AuthHelper {
    * Realiza logout do sistema
    */
   async logout() {
-    // Verificar se está na página de painel/dashboard/logado
+    console.log('[AUTH] Iniciando logout...');
+
     const currentUrl = this.page.url();
 
-    if (!currentUrl.includes('/painel') && !currentUrl.includes('/dashboard') && !currentUrl.includes('/associados') && !currentUrl.includes('/contas')) {
-      console.log('Usuário já está deslogado');
+    // Verificar se está em uma página interna
+    if (!currentUrl.includes('/painel') &&
+        !currentUrl.includes('/dashboard') &&
+        !currentUrl.includes('/associados') &&
+        !currentUrl.includes('/contas')) {
+      console.log('[AUTH] Usuário já está deslogado');
       return;
     }
 
-    // Verificar se o menu do usuário está visível
-    const hasUserMenu = await this.page.locator('[data-testid="user-menu"]').isVisible().catch(() => false);
+    // Procurar pelo menu do usuário
+    const userMenuSelectors = [
+      '[data-testid="user-menu"]',
+      '[data-testid="menu-usuario"]',
+      'button:has-text("Abrir menu do usuário")',
+      '.user-menu',
+      '#user-menu'
+    ];
 
-    if (!hasUserMenu) {
-      // Tentar sair pela navegação direta
+    let menuClicked = false;
+    for (const selector of userMenuSelectors) {
+      try {
+        const menu = this.page.locator(selector).first();
+        if (await menu.isVisible({ timeout: 2000 })) {
+          await menu.click();
+          console.log(`[AUTH] Menu do usuário aberto usando: ${selector}`);
+          menuClicked = true;
+          break;
+        }
+      } catch (e) {
+        // Tentar próximo seletor
+      }
+    }
+
+    if (!menuClicked) {
+      console.log('[AUTH] Menu do usuário não encontrado, tentando logout direto...');
       await this.page.goto('/logout').catch(() => {});
-      await this.page.waitForURL(/.*\/login.*/, { timeout: 5000 });
+      await this.page.waitForURL(/.*\/(login|$).*/, { timeout: 5000 });
       return;
     }
-
-    // Clicar no menu do usuário
-    await this.page.click('[data-testid="user-menu"]');
 
     // Clicar no botão de logout
-    await this.page.click('button:has-text("Sair")');
+    const logoutSelectors = [
+      'button:has-text("Sair")',
+      'a:has-text("Sair")',
+      '[data-testid="btn-logout"]',
+      'button:has-text("Logout")',
+      'a:has-text("Logout")'
+    ];
 
-    // Aguardar redirecionamento para página de login
-    await this.page.waitForURL(/.*\/login.*/, { timeout: 5000 });
+    for (const selector of logoutSelectors) {
+      try {
+        const button = this.page.locator(selector).first();
+        if (await button.isVisible({ timeout: 2000 })) {
+          await button.click();
+          console.log(`[AUTH] Logout clicado usando: ${selector}`);
+          break;
+        }
+      } catch (e) {
+        // Tentar próximo seletor
+      }
+    }
+
+    // Aguardar redirecionamento para login
+    await this.page.waitForURL(/.*\/(login|$).*/, { timeout: 5000 });
+    console.log('[AUTH] ✅ Logout concluído');
   }
 }

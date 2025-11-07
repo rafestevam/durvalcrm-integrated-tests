@@ -273,7 +273,16 @@ jobs:
           path: playwright-report/
 ```
 
-## 📚 Recursos
+## 📚 Documentação Adicional
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Guia rápido de início ⭐
+- **[SELECTOR-STRATEGY.md](SELECTOR-STRATEGY.md)** - Estratégia de seletores com fallback 🔧
+- **[CONFIGURATION.md](CONFIGURATION.md)** - Configuração de ambiente (URLs, timeouts, credenciais)
+- **[AUTH-PROCESS.md](AUTH-PROCESS.md)** - Processo detalhado de autenticação
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Guia de resolução de problemas
+- **[tests/README-CRUD-ASSOCIADOS.md](tests/README-CRUD-ASSOCIADOS.md)** - Documentação do teste CRUD
+
+## 📚 Recursos Externos
 
 - [Documentação do Playwright](https://playwright.dev/)
 - [Best Practices](https://playwright.dev/docs/best-practices)

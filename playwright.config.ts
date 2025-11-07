@@ -35,7 +35,8 @@ export default defineConfig({
   // Configurações compartilhadas para todos os testes
   use: {
     // URL base da aplicação
-    // Em desenvolvimento: http://localhost:9080/crm
+    // Em desenvolvimento WildFly: http://localhost:9080/crm
+    // Em desenvolvimento Vite: http://localhost:3000
     // Em staging: https://localhost:9443
     // Em produção: https://crm.durvalcrm.org
     baseURL: process.env.BASE_URL || 'http://localhost:9080/crm',
