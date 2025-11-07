@@ -21,6 +21,8 @@ Garantir que todas as funcionalidades implementadas atendem aos critérios de ac
 ```
 durvalcrm-integrated-testing/
 ├── tests/                          # Testes organizados por sprint
+│   ├── e2e/                        # Testes E2E de fluxos completos
+│   │   └── fluxo-completo-mensalidade.spec.ts
 │   └── sprint01/                   # Sprint 1 - Fundação
 │       ├── us060-contas-bancarias.spec.ts
 │       └── us061-registro-recebimentos.spec.ts
@@ -88,6 +90,15 @@ npm run test:us060
 
 # Apenas US-061 (Registro de Recebimentos)
 npm run test:us061
+
+# Testes E2E de fluxos completos
+npm run test:e2e
+
+# Teste E2E específico - Fluxo completo de mensalidade
+npm run test:e2e:fluxo-mensalidade
+
+# Teste E2E com navegador visível
+npm run test:e2e:fluxo-mensalidade:headed
 ```
 
 ### Ver relatório de testes
