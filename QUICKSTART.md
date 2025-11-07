@@ -49,6 +49,55 @@ Executa todos os testes sem abrir o navegador (mais rápido).
 npm run test:debug
 ```
 
+## 📋 Testes Disponíveis
+
+### CRUD Completo - Associados
+
+Teste completo de Create, Read, Update e Delete para o módulo de Associados:
+
+```bash
+# Executar todos os testes de CRUD
+npm run test:crud-associados
+
+# Com navegador visível
+npm run test:crud-associados:headed
+
+# Modo debug interativo
+npm run test:crud-associados:debug
+```
+
+**Funcionalidades testadas:**
+- ✅ Criação de associado com dados completos
+- ✅ Criação de associado com dados mínimos
+- ✅ Validação de campos obrigatórios
+- ✅ Validação de CPF único
+- ✅ Listagem e busca de associados
+- ✅ Visualização de detalhes
+- ✅ Atualização de dados pessoais
+- ✅ Atualização de endereço
+- ✅ Inativação (soft delete)
+- ✅ Reativação de associado
+
+### Testes por Sprint
+
+```bash
+# Sprint 01 - Fundação
+npm run test:sprint01
+
+# US-060: Contas Bancárias
+npm run test:us060
+
+# US-061: Registro de Recebimentos
+npm run test:us061
+```
+
+### Debug e Diagnóstico
+
+```bash
+# Teste de debug de autenticação
+npm run test:debug-login
+```
+
 Abre o Playwright Inspector para debug passo a passo.
 
 ## 📋 Testes Disponíveis na Sprint 1
